@@ -29,6 +29,8 @@ const searchColleges = (req, res) => {
       branchList = branches.split(",").map(b => b.trim()).filter(Boolean);
     }
   }
+  // Normalize client branch inputs
+  branchList = branchList.map(b => cleanBranch(b)).filter(Boolean);
 
   // Determine rank range constraints
   let minLimit = 0;
@@ -62,8 +64,8 @@ const searchColleges = (req, res) => {
         return false;
       }
 
-      // Filter by selected branches if any
-      if (branchList.length > 0 && !branchList.includes(record.branch)) {
+      // Filter by selected branches if any (using normalized branch names)
+      if (branchList.length > 0 && !branchList.includes(cleanBranch(record.branch))) {
         return false;
       }
 
@@ -86,6 +88,7 @@ const searchColleges = (req, res) => {
 
       return {
         ...record,
+        branch: cleanBranch(record.branch),
         status
       };
     });

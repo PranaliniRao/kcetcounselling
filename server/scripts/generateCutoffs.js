@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const cleanBranch = require("../src/utils/cleanBranch");
+
 
 // Default category mappings for safety fallbacks
 const defaultR1Categories = [
@@ -171,14 +173,17 @@ function parseText(text, round) {
       }
 
       branchObj.cutoffs.forEach((cutoff, index) => {
-        allRecords.push({
-          collegeCode,
-          collegeName,
-          branch: branchObj.branch,
-          category: categories[index],
-          round,
-          cutoff
-        });
+        const cleaned = cleanBranch(branchObj.branch);
+        if (cleaned) {
+          allRecords.push({
+            collegeCode,
+            collegeName,
+            branch: cleaned,
+            category: categories[index],
+            round,
+            cutoff
+          });
+        }
       });
     }
   }
