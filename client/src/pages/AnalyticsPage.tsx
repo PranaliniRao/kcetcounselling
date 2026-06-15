@@ -24,7 +24,7 @@ export default function AnalyticsPage() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("http://localhost:8000/api/branches/stats");
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/branches/stats`);
         setStats(response.data);
         setError("");
       } catch (err) {

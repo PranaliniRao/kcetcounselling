@@ -43,12 +43,12 @@ export default function ComparisonPage() {
   useEffect(() => {
     const fetchColleges = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/colleges");
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/colleges`);
         const sorted = response.data.sort((a: CollegeItem, b: CollegeItem) =>
           a.collegeName.localeCompare(b.collegeName)
         );
         setCollegesList(sorted);
-        
+    
         // Default selection: RVCE (E005) vs BMSCE (E006) if they exist
         const defaultA = sorted.find((c: CollegeItem) => c.collegeCode === "E005") || sorted[0];
         const defaultB = sorted.find((c: CollegeItem) => c.collegeCode === "E006") || sorted[1] || sorted[0];

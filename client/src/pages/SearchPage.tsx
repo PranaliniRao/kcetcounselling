@@ -93,7 +93,7 @@ function SearchPage() {
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/branches");
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/branches`);
         setBranches(response.data);
       } catch (error) {
         console.error("Failed to fetch branches:", error);
