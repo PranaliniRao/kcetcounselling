@@ -21,6 +21,46 @@ interface SearchResult {
   status: string;
 }
 
+const SEARCH_PAGE_STORAGE_KEY = "kcet_user_search_state";
+
+interface SearchPageState {
+  rank: string;
+  category: string;
+  round: string;
+  rankRange: string;
+  customMinRank: string;
+  customMaxRank: string;
+  branchSearch: string;
+  branches: string[];
+  selectedBranches: string[];
+  results: SearchResult[];
+  totalCount: number;
+  safeCount: number;
+  moderateCount: number;
+  riskyCount: number;
+  searched: boolean;
+}
+
+const loadSearchState = (): SearchPageState | null => {
+  try {
+    const raw = localStorage.getItem(SEARCH_PAGE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as SearchPageState;
+  } catch {
+    return null;
+  }
+};
+
+const saveSearchState = (state: SearchPageState) => {
+  try {
+    localStorage.setItem(SEARCH_PAGE_STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error("Failed to save search state:", error);
+  }
+};
+
 function SearchPage() {
   // Search parameters states
   const [category, setCategory] = useState(() => {
@@ -88,44 +128,116 @@ function SearchPage() {
   // UI status states
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // Fetch unique branches dynamically on component mount
+  // Fetch unique branches dynamically on component mount and restore stored search state
   useEffect(() => {
+    const storedState = loadSearchState();
+    if (storedState) {
+      setCategory(storedState.category);
+      setRound(storedState.round);
+      setRank(storedState.rank);
+      setRankRange(storedState.rankRange);
+      setCustomMinRank(storedState.customMinRank);
+      setCustomMaxRank(storedState.customMaxRank);
+      setBranchSearch(storedState.branchSearch);
+      setBranches(storedState.branches || []);
+      setSelectedBranches(storedState.selectedBranches || []);
+      setResults(storedState.results || []);
+      setTotalCount(storedState.totalCount || 0);
+      setSafeCount(storedState.safeCount || 0);
+      setModerateCount(storedState.moderateCount || 0);
+      setRiskyCount(storedState.riskyCount || 0);
+      setSearched(storedState.searched || false);
+    }
+
     const fetchBranches = async () => {
       try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/branches`);
-        setBranches(response.data);
+        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        const response = await axios.get(`${baseUrl}/api/branches`);
+        const data = response.data;
+        const branchArray = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.branches)
+          ? data.branches
+          : [];
+
+        if (branchArray.length > 0) {
+          setBranches(branchArray);
+        }
       } catch (error) {
         console.error("Failed to fetch branches:", error);
       }
     };
     fetchBranches();
+    setIsHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+    saveSearchState({
+      rank,
+      category,
+      round,
+      rankRange,
+      customMinRank,
+      customMaxRank,
+      branchSearch,
+      branches,
+      selectedBranches,
+      results,
+      totalCount,
+      safeCount,
+      moderateCount,
+      riskyCount,
+      searched,
+    });
+  }, [
+    rank,
+    category,
+    round,
+    rankRange,
+    customMinRank,
+    customMaxRank,
+    branchSearch,
+    branches,
+    selectedBranches,
+    results,
+    totalCount,
+    safeCount,
+    moderateCount,
+    riskyCount,
+    searched,
+  ]);
 
   // Validation: Check total branches API vs total branches rendered in categories
   useEffect(() => {
-    if (branches.length > 0) {
-      const grouped: Record<string, string[]> = {};
-      Object.keys(BRANCH_CATEGORIES).forEach((c) => {
-        grouped[c] = [];
-      });
-      branches.forEach((b) => {
-        const cat = categorizeBranch(b);
-        if (grouped[cat]) {
-          grouped[cat].push(b);
-        } else {
-          grouped["Design & Others"].push(b);
-        }
-      });
-      
-      let totalRendered = 0;
-      Object.values(grouped).forEach((list) => {
-        totalRendered += list.length;
-      });
-
-      console.log(`Total Branches from API: ${branches.length}`);
-      console.log(`Total Branches Rendered: ${totalRendered}`);
+    if (!Array.isArray(branches) || branches.length === 0) {
+      return;
     }
+
+    const grouped: Record<string, string[]> = {};
+    Object.keys(BRANCH_CATEGORIES).forEach((c) => {
+      grouped[c] = [];
+    });
+    branches.forEach((b) => {
+      const cat = categorizeBranch(b);
+      if (grouped[cat]) {
+        grouped[cat].push(b);
+      } else {
+        grouped["Design & Others"].push(b);
+      }
+    });
+
+    let totalRendered = 0;
+    Object.values(grouped).forEach((list) => {
+      totalRendered += list.length;
+    });
+
+    console.log(`Total Branches from API: ${branches.length}`);
+    console.log(`Total Branches Rendered: ${totalRendered}`);
   }, [branches]);
 
   // Load saved shortlist items map
@@ -190,8 +302,16 @@ function SearchPage() {
     }
   };
 
+  const getEffectiveBranches = () => {
+    const normalized = Array.isArray(branches) ? branches : [];
+    if (normalized.length > 0) {
+      return normalized;
+    }
+    return [...new Set(results.map((item) => item.branch).filter(Boolean))].sort();
+  };
+
   const handleSelectAllBranches = () => {
-    setSelectedBranches([...branches]);
+    setSelectedBranches(getEffectiveBranches());
   };
 
   const handleClearAllBranches = () => {
@@ -264,7 +384,12 @@ function SearchPage() {
     totalCategoryCounts[cat] = 0;
   });
 
-  branches.forEach((b) => {
+  const normalizedBranches = Array.isArray(branches) ? branches : [];
+  const effectiveBranches = normalizedBranches.length > 0
+    ? normalizedBranches
+    : [...new Set(results.map((item) => item.branch).filter(Boolean))].sort();
+
+  effectiveBranches.forEach((b) => {
     const cat = categorizeBranch(b);
     if (totalCategoryCounts[cat] !== undefined) {
       totalCategoryCounts[cat]++;
@@ -274,7 +399,7 @@ function SearchPage() {
   });
 
   // Filter and populate categories
-  branches.forEach((branchName) => {
+  effectiveBranches.forEach((branchName) => {
     if (branchSearch && !branchName.toLowerCase().includes(branchSearch.toLowerCase())) {
       return;
     }
