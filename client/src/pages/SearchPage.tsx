@@ -109,11 +109,11 @@ function SearchPage() {
   // Shortlist map of active options
   const [savedMap, setSavedMap] = useState<Record<string, string>>({});
 
-  // Accordion open/collapse states for branch categories
+  // Accordion open/collapse states for branch categories (collapsed by default)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     Object.keys(BRANCH_CATEGORIES).forEach((cat) => {
-      initial[cat] = true;
+      initial[cat] = false;
     });
     return initial;
   });
@@ -318,11 +318,20 @@ function SearchPage() {
     setSelectedBranches([]);
   };
 
+  // Single-open accordion: opening one category collapses others. Clicking an open
+  // category will collapse it.
   const toggleAccordion = (cat: string) => {
-    setExpandedCategories((prev) => ({
-      ...prev,
-      [cat]: !prev[cat],
-    }));
+    setExpandedCategories((prev) => {
+      const isOpen = !!prev[cat];
+      const newState: Record<string, boolean> = {};
+      Object.keys(BRANCH_CATEGORIES).forEach((c) => {
+        newState[c] = false;
+      });
+      if (!isOpen) {
+        newState[cat] = true;
+      }
+      return newState;
+    });
   };
 
   const handleSearch = async () => {
@@ -433,7 +442,7 @@ function SearchPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
           
           {/* Column 1: Search Parameters */}
-          <div className="lg:col-span-1 bg-white rounded-3xl shadow-xl border border-slate-100 p-6 flex flex-col gap-4">
+          <div className="lg:col-span-1 bg-white rounded-3xl shadow-xl border border-slate-100 p-6 flex flex-col gap-4 h-[600px]">
             <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -588,13 +597,16 @@ function SearchPage() {
             </div>
 
             {/* Expanded Accordion List Container with Internal Scroll */}
-            <div className="max-h-[480px] overflow-y-auto pr-1 flex flex-col gap-3 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 scrollbar-thin">
               {Object.entries(groupedBranches).some(([_, list]) => list.length > 0) ? (
                 Object.entries(groupedBranches).map(([catName, catBranches]) => {
                   if (catBranches.length === 0) return null;
 
-                  // Auto-expand if the search query matches branches inside this category
-                  const isExpanded = branchSearch ? true : expandedCategories[catName];
+                  // Auto-expand only if the search query matches branches inside this category
+                  const matchesSearch = branchSearch
+                    ? catBranches.some((b) => b.toLowerCase().includes(branchSearch.toLowerCase()))
+                    : false;
+                  const isExpanded = branchSearch ? matchesSearch : expandedCategories[catName];
                   const isAllSelected = catBranches.every((b) => selectedBranches.includes(b));
                   const isSomeSelected = catBranches.some((b) => selectedBranches.includes(b)) && !isAllSelected;
                   const totalCount = totalCategoryCounts[catName] || 0;
